@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.0-pre-1
+ * Chaplin 0.11.0-pre-2
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -1801,7 +1801,7 @@ module.exports = Route = (function() {
   }
 
   Route.prototype.matches = function(criteria) {
-    var name, propertiesCount, property, _i, _len, _ref;
+    var invalidParamsCount, name, propertiesCount, property, _i, _len, _ref;
     if (typeof criteria === 'string') {
       return criteria === this.name;
     } else {
@@ -1815,10 +1815,8 @@ module.exports = Route = (function() {
           return false;
         }
       }
-      if (propertiesCount === 1 && (name === 'action' || name === 'controller')) {
-        return false;
-      }
-      return true;
+      invalidParamsCount = propertiesCount === 1 && (name === 'action' || name === 'controller');
+      return !invalidParamsCount;
     }
   };
 
@@ -1928,23 +1926,22 @@ module.exports = Route = (function() {
   };
 
   Route.prototype.handler = function(pathParams, options) {
-    var actionParams, params, path, query, queryParams, route, _ref;
+    var actionParams, params, path, query, route, _ref;
     options = options ? _.clone(options) : {};
     if (typeof pathParams === 'object') {
-      queryParams = options.query;
-      delete options.query;
-      query = utils.QueryParams.stringify(queryParams);
+      query = utils.QueryParams.stringify(options.query);
       params = pathParams;
       path = this.reverse(params);
     } else {
       _ref = pathParams.split('?'), path = _ref[0], query = _ref[1];
-      if (query == null) {
+      if (!(query != null)) {
         query = '';
+      } else {
+        options.query = utils.QueryParams.parse(query);
       }
-      queryParams = utils.QueryParams.parse(query);
       params = this.extractParams(path);
     }
-    actionParams = _.extend({}, queryParams, params, this.options.params);
+    actionParams = _.extend({}, params, this.options.params);
     route = {
       path: path,
       action: this.action,
@@ -1975,7 +1972,7 @@ module.exports = Route = (function() {
 });;loader.register('chaplin/lib/router', function(e, r, module) {
 'use strict';
 
-var Backbone, EventBroker, Route, Router, mediator, utils, _,
+var Backbone, EventBroker, History, Route, Router, mediator, utils, _,
   __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
 
 _ = loader('underscore');
@@ -1985,6 +1982,8 @@ Backbone = loader('backbone');
 mediator = loader('chaplin/mediator');
 
 EventBroker = loader('chaplin/lib/event_broker');
+
+History = loader('chaplin/lib/history');
 
 Route = loader('chaplin/lib/route');
 
@@ -2014,7 +2013,7 @@ module.exports = Router = (function() {
   }
 
   Router.prototype.createHistory = function() {
-    return Backbone.history || (Backbone.history = new Backbone.History());
+    return Backbone.history = new History();
   };
 
   Router.prototype.startHistory = function() {
@@ -2056,7 +2055,10 @@ module.exports = Router = (function() {
   Router.prototype.route = function(pathDesc, params, options) {
     var handler, path;
     params = params ? _.clone(params) : {};
-    if (typeof pathDesc === 'object' && ((path = pathDesc.url) != null)) {
+    if (typeof pathDesc === 'object') {
+      path = pathDesc.url;
+    }
+    if (path != null) {
       path = path.replace(this.removeRoot, '');
       handler = _.find(Backbone.history.handlers, function(handler) {
         return handler.route.test(path);
