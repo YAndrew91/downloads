@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.0-pre-3
+ * Chaplin 0.11.0-dev
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -1340,7 +1340,7 @@ module.exports = View = (function(_super) {
     if (this.region != null) {
       mediator.execute('region:show', this.region, this);
     }
-    if (this.container) {
+    if (this.container && !document.body.contains(this.el)) {
       $(this.container)[this.containerMethod](this.el);
       return this.trigger('addedToDOM');
     }
@@ -1837,7 +1837,7 @@ module.exports = Route = (function() {
       return url;
     }
     if (typeof query === 'object') {
-      return url += '?' + utils.QueryParams.stringify(query);
+      return url += '?' + utils.queryParams.stringify(query);
     } else {
       return url += (query[0] === '?' ? '' : '?') + query;
     }
@@ -1929,7 +1929,7 @@ module.exports = Route = (function() {
     var actionParams, params, path, query, route, _ref;
     options = options ? _.clone(options) : {};
     if (typeof pathParams === 'object') {
-      query = utils.QueryParams.stringify(options.query);
+      query = utils.queryParams.stringify(options.query);
       params = pathParams;
       path = this.reverse(params);
     } else {
@@ -1937,7 +1937,7 @@ module.exports = Route = (function() {
       if (!(query != null)) {
         query = '';
       } else {
-        options.query = utils.QueryParams.parse(query);
+        options.query = utils.queryParams.parse(query);
       }
       params = this.extractParams(path);
     }
@@ -2006,11 +2006,24 @@ module.exports = Router = (function() {
       root: '/'
     });
     this.removeRoot = new RegExp('^' + utils.escapeRegExp(this.options.root) + '(#)?');
+    this.subscribeEvent('!router:route', this.oldEventError);
+    this.subscribeEvent('!router:routeByName', this.oldEventError);
+    this.subscribeEvent('!router:changeURL', this.oldURLEventError);
     mediator.setHandler('router:route', this.route, this);
     mediator.setHandler('router:reverse', this.reverse, this);
     mediator.setHandler('router:changeURL', this.changeURL, this);
     this.createHistory();
   }
+
+  Router.prototype.oldEventError = function() {
+    throw new Error('!router:route and !router:routeByName events were removed.\
+  Use `Chaplin.helpers.redirectTo`');
+  };
+
+  Router.prototype.oldURLEventError = function() {
+    throw new Error('!router:changeURL event was removed.\
+  Use mediator.execute("router:changeURL")');
+  };
 
   Router.prototype.createHistory = function() {
     return Backbone.history = new History();
@@ -2645,7 +2658,7 @@ utils = {
   modifierKeyPressed: function(event) {
     return event.shiftKey || event.altKey || event.ctrlKey || event.metaKey;
   },
-  QueryParams: {
+  queryParams: {
     stringify: function(queryParams) {
       var arrParam, encodedKey, key, query, value, _i, _len;
       query = '';
