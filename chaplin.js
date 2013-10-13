@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.1-dev-1
+ * Chaplin 0.11.1-dev-2
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -491,14 +491,8 @@ module.exports = Composer = (function() {
     current = this.compositions[name];
     if (current) {
       if (current.check(composition.options)) {
-        current.update = composition.update;
+        promise = this._mergeComposition(current, composition, promise);
         composition = current;
-        if (current.promise) {
-          promise = current.promise.then(function() {
-            return promise;
-          });
-          delete current.promise;
-        }
       } else {
         current.dispose();
       }
@@ -558,6 +552,19 @@ module.exports = Composer = (function() {
           return this;
         }
       };
+    }
+    return promise;
+  };
+
+  Composer.prototype._mergeComposition = function(current, composition, promise) {
+    var _promise;
+    current.update = composition.update;
+    if (current.promise) {
+      _promise = promise;
+      promise = current.promise.then(function() {
+        return _promise;
+      });
+      delete current.promise;
     }
     return promise;
   };
