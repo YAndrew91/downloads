@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.3-dev-1
+ * Chaplin 0.11.3-dev-2
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -576,10 +576,10 @@ module.exports = Composer = (function() {
     var resolvedDependencies,
       _this = this;
     resolvedDependencies = [];
-    _.each(composition.dependencies, function(dependencyKey) {
+    _.each(composition.dependencies, function(dependencyName) {
       return promise = promise.then(function() {
         var dependency;
-        dependency = _this.compositions[dependencyKey];
+        dependency = _this.compositions[dependencyName];
         if (!(dependency != null) || (!(_this.deferredCreator != null) && dependency.stale())) {
           return void 0;
         }
@@ -660,10 +660,10 @@ module.exports = Composer = (function() {
   Composer.prototype._disposeComposition = function(name, dependentMap, filter) {
     var composition, dependentName, dependentNames, _i, _len;
     composition = this.compositions[name];
-    dependentNames = dependentMap[name];
     if (!composition) {
       return;
     }
+    dependentNames = dependentMap[name];
     if (dependentNames) {
       for (_i = 0, _len = dependentNames.length; _i < _len; _i++) {
         dependentName = dependentNames[_i];
@@ -679,14 +679,41 @@ module.exports = Composer = (function() {
     return delete this.compositions[name];
   };
 
+  Composer.prototype._waitForCompose = function(action) {
+    var actionPromise, promiseIterator;
+    promiseIterator = function(actionPromise, composition) {
+      var promise;
+      promise = composition.promise;
+      if (!promise) {
+        return actionPromise;
+      }
+      if (!actionPromise) {
+        return promise;
+      }
+      return actionPromise.then(function() {
+        return promise;
+      });
+    };
+    actionPromise = _.reduce(this.compositions, promiseIterator, null);
+    if (actionPromise) {
+      return actionPromise.then(action);
+    } else {
+      return action();
+    }
+  };
+
   Composer.prototype.afterAction = function() {
-    var actionDeferred;
+    var actionDeferred,
+      _this = this;
     actionDeferred = this.actionDeferred;
     this.cleanup();
     if (actionDeferred != null) {
       this.actionDeferred = null;
-      return actionDeferred.resolve();
+      actionDeferred.resolve();
     }
+    return this._waitForCompose(function() {
+      return _this.publishEvent('composer:complete');
+    });
   };
 
   Composer.prototype.cleanup = function() {
