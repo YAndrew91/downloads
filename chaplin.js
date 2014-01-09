@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.3-dev-2
+ * Chaplin 0.11.3-dev-3
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -422,6 +422,8 @@ module.exports = Composer = (function() {
 
   Composer.prototype.compositions = null;
 
+  Composer.prototype.composeError = null;
+
   Composer.prototype.deferredCreator = null;
 
   Composer.prototype.actionDeferred = null;
@@ -434,6 +436,7 @@ module.exports = Composer = (function() {
     if (options == null) {
       options = {};
     }
+    this.composeError = options.composeError;
     this.deferredCreator = options.deferredCreator;
     this.compositions = {};
     mediator.setHandler('composer:compose', this.compose, this);
@@ -503,6 +506,11 @@ module.exports = Composer = (function() {
       promise = this._composeComposition(composition, promise);
     }
     promise = this._updateComposition(composition, promise);
+    promise = this._errorComposition(name, composition, promise);
+    if (composition.disposed) {
+      return;
+    }
+    promise = this._completeComposition(composition, promise);
     if (promise) {
       composition.promise = promise;
     }
@@ -528,6 +536,9 @@ module.exports = Composer = (function() {
       composition.compose = options.compose;
       if (options.update) {
         composition.update = options.update;
+      }
+      if (options.error) {
+        composition.error = options.error;
       }
       if (options.afterDispose) {
         composition.afterDispose = options.afterDispose;
@@ -566,6 +577,8 @@ module.exports = Composer = (function() {
       _promise = promise;
       promise = current.promise.then(function() {
         return _promise;
+      }, function() {
+        return _promise;
       });
       delete current.promise;
     }
@@ -581,7 +594,7 @@ module.exports = Composer = (function() {
         var dependency;
         dependency = _this.compositions[dependencyName];
         if (!(dependency != null) || (!(_this.deferredCreator != null) && dependency.stale())) {
-          return void 0;
+          return;
         }
         return dependency.promise || dependency.item;
       }).then(function(item) {
@@ -605,11 +618,37 @@ module.exports = Composer = (function() {
   };
 
   Composer.prototype._updateComposition = function(composition, promise) {
+    return promise.then(function(resolvedDependencies) {
+      return composition.update.apply(composition.item, [composition.options].concat(resolvedDependencies));
+    });
+  };
+
+  Composer.prototype._errorComposition = function(name, composition, promise) {
+    var _this = this;
+    return promise.then(function(result) {
+      return result;
+    }, function() {
+      var errorResult;
+      errorResult = composition.error.call(composition.item, composition.options);
+      if (!(errorResult != null) && _this.composeError) {
+        errorResult = _this.composeError(composition.item);
+      }
+      if ((errorResult != null) && errorResult.then) {
+        return errorResult.then(function(result) {
+          return result;
+        }, function() {
+          return _this._disposeComposition(name, {});
+        });
+      } else {
+        return _this._disposeComposition(name, {});
+      }
+    });
+  };
+
+  Composer.prototype._completeComposition = function(composition, promise) {
     var resolved;
     resolved = null;
-    promise = promise.then(function(resolvedDependencies) {
-      return composition.update.apply(composition.item, [composition.options].concat(resolvedDependencies));
-    }).then(function() {
+    promise = promise.then(function() {
       resolved = true;
       if (composition.disposed) {
         return;
@@ -676,7 +715,7 @@ module.exports = Composer = (function() {
     }
     composition.dispose();
     composition.afterDispose.apply(null);
-    return delete this.compositions[name];
+    delete this.compositions[name];
   };
 
   Composer.prototype._waitForCompose = function(action) {
@@ -692,11 +731,13 @@ module.exports = Composer = (function() {
       }
       return actionPromise.then(function() {
         return promise;
+      }, function() {
+        return promise;
       });
     };
     actionPromise = _.reduce(this.compositions, promiseIterator, null);
     if (actionPromise) {
-      return actionPromise.then(action);
+      return actionPromise.then(action, action);
     } else {
       return action();
     }
@@ -2897,6 +2938,8 @@ module.exports = Composition = (function() {
   Composition.prototype.compose = function() {};
 
   Composition.prototype.update = function() {};
+
+  Composition.prototype.error = function() {};
 
   Composition.prototype.afterDispose = function() {};
 
