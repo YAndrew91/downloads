@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.3-dev-3
+ * Chaplin 0.11.3-dev-4
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -1671,7 +1671,7 @@ module.exports = View = (function(_super) {
   };
 
   View.prototype.render = function() {
-    var el, html, templateFunc;
+    var el, html, subview, templateFunc, _i, _len, _ref;
     if (this.disposed) {
       return false;
     }
@@ -1689,6 +1689,11 @@ module.exports = View = (function(_super) {
       } else {
         setHTML(($ ? this.$el : this.el), html);
       }
+    }
+    _ref = this.subviews;
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      subview = _ref[_i];
+      subview.render();
     }
     return this;
   };
