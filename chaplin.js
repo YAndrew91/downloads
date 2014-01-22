@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.3-dev-4
+ * Chaplin 0.11.3-dev-5
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -2396,7 +2396,7 @@ module.exports = Route = (function() {
   Route.prototype.createRegExp = function() {
     var pattern;
     pattern = this.pattern.replace(escapeRegExp, '\\$&').replace(/(?::|\*)(\w+)/g, this.addParamName);
-    return this.regExp = RegExp("^" + pattern + "(?=\\?|$)");
+    return this.regExp = RegExp("^" + pattern + "(?=\\/*(\\?|$))");
   };
 
   Route.prototype.addParamName = function(match, paramName) {
