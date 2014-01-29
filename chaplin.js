@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.3-dev-5
+ * Chaplin 0.11.3-dev-6
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -2567,6 +2567,7 @@ module.exports = Router = (function() {
     route = new Route(pattern, controller, action, options);
     Backbone.history.handlers.push({
       route: route,
+      options: route.options.options,
       callback: route.handler
     });
     return route;
@@ -2598,9 +2599,9 @@ module.exports = Router = (function() {
       });
     }
     if (handler) {
-      _.defaults(options, {
+      options = _.extend({
         changeURL: true
-      });
+      }, handler.options, options);
       handler.callback(path || params, options);
       return true;
     } else {
