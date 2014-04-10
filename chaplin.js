@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.3-dev-7
+ * Chaplin 0.11.3-dev-8
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -2398,7 +2398,7 @@ module.exports = Route = (function() {
   Route.prototype.createRegExp = function() {
     var pattern;
     pattern = this.pattern.replace(escapeRegExp, '\\$&').replace(/(?::|\*)(\w+)/g, this.addParamName);
-    return this.regExp = RegExp("^" + pattern + "(?=\\/*(\\?|$))");
+    return this.regExp = RegExp("^" + pattern + "(?=\\/*(?:\\?|$))");
   };
 
   Route.prototype.addParamName = function(match, paramName) {
@@ -2576,7 +2576,7 @@ module.exports = Router = (function() {
   };
 
   Router.prototype.route = function(pathDesc, params, options) {
-    var handler, path;
+    var handler, path, pathParams;
     params = params ? utils.isArray(params) ? params.slice() : _.extend({}, params) : {};
     if (typeof pathDesc === 'object') {
       path = pathDesc.url;
@@ -2604,7 +2604,8 @@ module.exports = Router = (function() {
       options = _.extend({
         changeURL: true
       }, handler.options, options);
-      handler.callback(path || params, options);
+      pathParams = path != null ? path : params;
+      handler.callback(pathParams, options);
       return true;
     } else {
       throw new Error('Router#route: request was not routed');
