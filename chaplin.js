@@ -1,5 +1,5 @@
 /*!
- * Chaplin 0.11.3-dev-6
+ * Chaplin 0.11.3-dev-7
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -173,11 +173,13 @@ utils = loader('chaplin/lib/utils');
 
 mediator = {};
 
-mediator.subscribe = Backbone.Events.on;
+mediator.subscribe = mediator.on = Backbone.Events.on;
 
-mediator.unsubscribe = Backbone.Events.off;
+mediator.subscribeOnce = mediator.once = Backbone.Events.once;
 
-mediator.publish = Backbone.Events.trigger;
+mediator.unsubscribe = mediator.off = Backbone.Events.off;
+
+mediator.publish = mediator.trigger = Backbone.Events.trigger;
 
 mediator._callbacks = null;
 
