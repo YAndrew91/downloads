@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "0.11.3-dev-8",
+  "version": "1.0.0-dev-1",
   "description": "Chaplin.js",
   "main": "chaplin.js",
   "scripts": {
@@ -13,7 +13,7 @@
   "author": "Chaplin team",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/YAndrew91/downloads/issues"
+    "url": "https://github.com/chaplinjs/downloads/issues"
   },
   "dependencies": {
     "backbone": "~1.0.0",
