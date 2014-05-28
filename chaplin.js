@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-2
+ * Chaplin 1.0.0-dev-3
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -1680,11 +1680,13 @@ module.exports = View = (function(_super) {
   };
 
   View.prototype.render = function() {
-    var el, html, subview, templateFunc, _i, _len, _ref;
+    var el, html, subview, templateFunc, _i, _j, _len, _len1, _ref, _ref1;
     if (this.disposed) {
       return false;
     }
-    for (subview in this.subviews) {
+    _ref = this.subviews;
+    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+      subview = _ref[_i];
       el = subview.el;
       if (el && el.parentNode) {
         el.parentNode.removeChild(el);
@@ -1709,9 +1711,9 @@ module.exports = View = (function(_super) {
       }
     }
     this.rendered = true;
-    _ref = this.subviews;
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      subview = _ref[_i];
+    _ref1 = this.subviews;
+    for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
+      subview = _ref1[_j];
       subview.render();
     }
     return this;
