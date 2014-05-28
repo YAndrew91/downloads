@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-1
+ * Chaplin 1.0.0-dev-2
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -1275,7 +1275,7 @@ module.exports = Layout = (function(_super) {
     if (!region) {
       throw new Error("No region registered under " + name);
     }
-    return instance.container = region.selector === '' ? $ ? region.instance.$el : region.instance.el : region.instance.noWrap ? $ ? $(region.instance.container).find(region.selector) : region.instance.container.querySelector(region.selector) : region.instance[$ ? '$' : 'find'](region.selector);
+    return instance.container = region.selector === '' ? $ ? region.instance.$el : region.instance.el : region.instance[$ ? '$' : 'find'](region.selector);
   };
 
   Layout.prototype.dispose = function() {
@@ -1404,6 +1404,7 @@ module.exports = View = (function(_super) {
         }
       }
     }
+    this.rendered = false;
     render = this.render;
     this.render = function() {
       if (_this.disposed) {
@@ -1683,6 +1684,12 @@ module.exports = View = (function(_super) {
     if (this.disposed) {
       return false;
     }
+    for (subview in this.subviews) {
+      el = subview.el;
+      if (el && el.parentNode) {
+        el.parentNode.removeChild(el);
+      }
+    }
     templateFunc = this.getTemplateFunction();
     if (typeof templateFunc === 'function') {
       html = templateFunc(this.getTemplateData());
@@ -1692,12 +1699,16 @@ module.exports = View = (function(_super) {
         if (el.children.length > 1) {
           throw new Error('There must be a single top-level element when ' + 'using `noWrap`.');
         }
-        this.undelegateEvents();
-        this.setElement(el.firstChild, true);
+        if (!this.rendered) {
+          this.setElement(el.firstChild, true);
+        } else {
+          setHTML(($ ? this.$el : this.el), el.firstChild.innerHTML);
+        }
       } else {
         setHTML(($ ? this.$el : this.el), html);
       }
     }
+    this.rendered = true;
     _ref = this.subviews;
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
       subview = _ref[_i];
