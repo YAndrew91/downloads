@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-3
+ * Chaplin 1.0.0-dev-4
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -420,6 +420,8 @@ module.exports = Composer = (function() {
 
   Composer.prototype.compositions = null;
 
+  Composer.prototype.rejectedCompositionPromises = null;
+
   Composer.prototype.composeError = null;
 
   Composer.prototype.deferredCreator = null;
@@ -437,6 +439,7 @@ module.exports = Composer = (function() {
     this.composeError = options.composeError;
     this.deferredCreator = options.deferredCreator;
     this.compositions = {};
+    this.rejectedCompositionPromises = {};
     mediator.setHandler('composer:compose', this.compose, this);
     mediator.setHandler('composer:retrieve', this.retrieve, this);
     return this.subscribeEvent('dispatcher:dispatch', this.afterAction);
@@ -593,6 +596,9 @@ module.exports = Composer = (function() {
       promise = (function(promise, dependencyName) {
         return promise.then(function() {
           var dependency;
+          if (dependencyName in _this.rejectedCompositionPromises) {
+            return _this.rejectedCompositionPromises[dependencyName];
+          }
           dependency = _this.compositions[dependencyName];
           if (!(dependency != null) || (!(_this.deferredCreator != null) && dependency.stale())) {
             return;
@@ -626,7 +632,12 @@ module.exports = Composer = (function() {
   };
 
   Composer.prototype._errorComposition = function(name, composition, promise) {
-    var _this = this;
+    var disposeComposition,
+      _this = this;
+    disposeComposition = function() {
+      _this.rejectedCompositionPromises[name] = composition.promise;
+      return _this._disposeComposition(name, {});
+    };
     return promise.then(function(result) {
       return result;
     }, function() {
@@ -638,11 +649,9 @@ module.exports = Composer = (function() {
       if ((errorResult != null) && errorResult.then) {
         return errorResult.then(function(result) {
           return result;
-        }, function() {
-          return _this._disposeComposition(name, {});
-        });
+        }, disposeComposition);
       } else {
-        return _this._disposeComposition(name, {});
+        return disposeComposition();
       }
     });
   };
@@ -759,6 +768,7 @@ module.exports = Composer = (function() {
       actionDeferred.resolve();
     }
     return this._waitForCompose(function() {
+      _this.rejectedCompositionPromises = {};
       return _this.publishEvent('composer:complete');
     });
   };
