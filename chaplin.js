@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-4
+ * Chaplin 1.0.0-dev-5
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -1497,11 +1497,12 @@ module.exports = View = (function(_super) {
     return bound;
   };
 
+  View.prototype._extendEventHandler = function(selector, eventType, handler) {
+    return handler;
+  };
+
   View.prototype._delegateEvents = function(events) {
-    var bound, eventName, handler, key, match, selector, value;
-    if (Backbone.View.prototype.delegateEvents.length === 2) {
-      return Backbone.View.prototype.delegateEvents.call(this, events, true);
-    }
+    var bound, eventName, eventType, extended, handler, key, match, selector, value;
     for (key in events) {
       value = events[key];
       handler = typeof value === 'function' ? value : this[value];
@@ -1509,10 +1510,12 @@ module.exports = View = (function(_super) {
         throw new Error("Method '" + value + "' does not exist");
       }
       match = key.match(/^(\S+)\s*(.*)$/);
-      eventName = "" + match[1] + ".delegateEvents" + this.cid;
-      selector = match[2];
+      eventType = match[1];
+      eventName = "" + eventType + ".delegateEvents" + this.cid;
+      selector = match[2] || null;
       bound = bind(handler, this);
-      this.$el.on(eventName, selector || null, bound);
+      extended = this._extendEventHandler(selector, eventType, bound);
+      this.$el.on(eventName, selector, extended);
     }
   };
 
