@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-6
+ * Chaplin 1.0.0-dev-7
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -422,6 +422,8 @@ module.exports = Composer = (function() {
 
   Composer.prototype.rejectedCompositionPromises = null;
 
+  Composer.prototype.composeLevel = 0;
+
   Composer.prototype.composeError = null;
 
   Composer.prototype.deferredCreator = null;
@@ -614,6 +616,10 @@ module.exports = Composer = (function() {
       })(promise, dependencyName);
     }
     return promise.then(function() {
+      if (_this.composeLevel > 1 && _this.deferredCreator) {
+        return _this.deferredCreator().reject();
+      }
+    }).then(function() {
       return resolvedDependencies;
     });
   };
@@ -766,6 +772,7 @@ module.exports = Composer = (function() {
     var actionDeferred,
       _this = this;
     actionDeferred = this.actionDeferred;
+    this.composeLevel++;
     this.cleanup();
     if (actionDeferred != null) {
       this.actionDeferred = null;
@@ -773,7 +780,10 @@ module.exports = Composer = (function() {
     }
     return this._waitForCompose(function() {
       _this.rejectedCompositionPromises = {};
-      return _this.publishEvent('composer:complete');
+      _this.composeLevel--;
+      if (_this.composeLevel === 0) {
+        return _this.publishEvent('composer:complete');
+      }
     });
   };
 
