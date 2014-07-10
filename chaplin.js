@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-5
+ * Chaplin 1.0.0-dev-6
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -225,7 +225,7 @@ mediator.removeHandlers = function(instanceOrNames) {
   }
 };
 
-utils.readonly(mediator, 'subscribe', 'unsubscribe', 'publish', 'setHandler', 'execute', 'removeHandlers');
+utils.readonly(mediator, 'subscribe', 'subscribeOnce', 'unsubscribe', 'publish', 'setHandler', 'execute', 'removeHandlers');
 
 mediator.seal = function() {
   if (support.propertyDescriptors && Object.seal) {
@@ -341,8 +341,8 @@ module.exports = Dispatcher = (function() {
       this.currentController.dispose(params, route, options);
     }
     this.currentController = controller;
-    this.currentParams = params;
-    this.currentQuery = options.query;
+    this.currentParams = _.clone(params);
+    this.currentQuery = _.clone(options.query);
     controller[route.action](params, route, options);
     if (controller.redirected) {
       return;
@@ -464,7 +464,11 @@ module.exports = Composer = (function() {
             dependencies: fourth,
             compose: function() {
               var autoRender, disabledAutoRender;
-              this.item = new second(this.options);
+              if (second.prototype instanceof Backbone.Model || second.prototype instanceof Backbone.Collection) {
+                this.item = new second(null, this.options);
+              } else {
+                this.item = new second(this.options);
+              }
               autoRender = this.item.autoRender;
               disabledAutoRender = autoRender === void 0 || !autoRender;
               if (disabledAutoRender && typeof this.item.render === 'function') {
@@ -1029,7 +1033,7 @@ module.exports = Model = (function(_super) {
     this.unsubscribeAllEvents();
     this.stopListening();
     this.off();
-    properties = ['collection', 'attributes', 'changed', '_escapedAttributes', '_previousAttributes', '_silent', '_pending', '_callbacks'];
+    properties = ['collection', 'attributes', 'changed', 'defaults', '_escapedAttributes', '_previousAttributes', '_silent', '_pending', '_callbacks'];
     for (_i = 0, _len = properties.length; _i < _len; _i++) {
       prop = properties[_i];
       delete this[prop];
@@ -1531,7 +1535,7 @@ module.exports = View = (function(_super) {
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
       classEvents = _ref[_i];
       if (typeof classEvents === 'function') {
-        throw new TypeError('View#delegateEvents: functions are not supported');
+        classEvents = classEvents.call(this);
       }
       this._delegateEvents(classEvents);
     }
@@ -1584,13 +1588,16 @@ module.exports = View = (function(_super) {
     _ref = utils.getAllPropertyVersions(this, 'listen');
     for (_i = 0, _len = _ref.length; _i < _len; _i++) {
       version = _ref[_i];
+      if (typeof version === 'function') {
+        version = version.call(this);
+      }
       for (key in version) {
         method = version[key];
         if (typeof method !== 'function') {
           method = this[method];
         }
         if (typeof method !== 'function') {
-          throw new Error('View#delegateListeners: ' + ("" + method + " must be function"));
+          throw new Error('View#delegateListeners: ' + ("listener for \"" + key + "\" must be function"));
         }
         _ref1 = key.split(' '), eventName = _ref1[0], target = _ref1[1];
         this.delegateListener(eventName, target, method);
@@ -2332,6 +2339,9 @@ module.exports = Route = (function() {
         Use strings with :names and `constraints` option of route');
     }
     this.options = options ? _.extend({}, options) : {};
+    if (this.options.paramsInQS !== false) {
+      this.options.paramsInQS = true;
+    }
     if (this.options.name != null) {
       this.name = this.options.name;
     }
@@ -2374,8 +2384,9 @@ module.exports = Route = (function() {
   };
 
   Route.prototype.reverse = function(params, query) {
-    var name, queryString, raw, url, value, _i, _j, _len, _len1, _ref, _ref1;
+    var name, raw, remainingParams, url, value, _i, _j, _len, _len1, _ref, _ref1;
     params = this.normalizeParams(params);
+    remainingParams = _.extend({}, params);
     if (params === false) {
       return false;
     }
@@ -2385,12 +2396,14 @@ module.exports = Route = (function() {
       name = _ref[_i];
       value = params[name];
       url = url.replace(RegExp("[:*]" + name, "g"), value);
+      delete remainingParams[name];
     }
     _ref1 = this.optionalParams;
     for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
       name = _ref1[_j];
       if (value = params[name]) {
         url = url.replace(RegExp("[:*]" + name, "g"), value);
+        delete remainingParams[name];
       }
     }
     raw = url.replace(optionalRegExp, function(match, portion) {
@@ -2401,15 +2414,16 @@ module.exports = Route = (function() {
       }
     });
     url = processTrailingSlash(raw, this.options.trailing);
-    if (!query) {
-      return url;
+    if (typeof query !== 'object') {
+      query = utils.queryParams.parse(query);
     }
-    if (typeof query === 'object') {
-      queryString = utils.queryParams.stringify(query);
-      return url += queryString ? '?' + queryString : '';
-    } else {
-      return url += (query[0] === '?' ? '' : '?') + query;
+    if (this.options.paramsInQS !== false) {
+      _.extend(query, remainingParams);
     }
+    if (!_.isEmpty(query)) {
+      url += '?' + utils.queryParams.stringify(query);
+    }
+    return url;
   };
 
   Route.prototype.normalizeParams = function(params) {
@@ -2867,7 +2881,7 @@ History = (function(_super) {
       return false;
     }
     this.fragment = fragment;
-    if (fragment.length === 0 && url !== '/') {
+    if (fragment.length === 0 && url !== '/' && (url !== this.root || this.options.trailing !== true)) {
       url = url.slice(0, -1);
     }
     if (this._hasPushState) {
@@ -2914,6 +2928,16 @@ EventBroker = {
     }
     mediator.unsubscribe(type, handler, this);
     return mediator.subscribe(type, handler, this);
+  },
+  subscribeEventOnce: function(type, handler) {
+    if (typeof type !== 'string') {
+      throw new TypeError('EventBroker#subscribeEventOnce: ' + 'type argument must be a string');
+    }
+    if (typeof handler !== 'function') {
+      throw new TypeError('EventBroker#subscribeEventOnce: ' + 'handler argument must be a function');
+    }
+    mediator.unsubscribe(type, handler, this);
+    return mediator.subscribeOnce(type, handler, this);
   },
   unsubscribeEvent: function(type, handler) {
     if (typeof type !== 'string') {
@@ -3292,6 +3316,7 @@ utils = {
       if (!queryString) {
         return params;
       }
+      queryString = queryString.slice(queryString.indexOf('?') + 1);
       pairs = queryString.split('&');
       for (_i = 0, _len = pairs.length; _i < _len; _i++) {
         pair = pairs[_i];
