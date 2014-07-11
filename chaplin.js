@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-7
+ * Chaplin 1.0.0-dev-8
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -740,11 +740,11 @@ module.exports = Composer = (function() {
   };
 
   Composer.prototype._waitForCompose = function(action) {
-    var actionPromise, composition, _i, _len, _ref;
+    var actionPromise, composition, name, _ref;
     actionPromise = null;
     _ref = this.compositions;
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      composition = _ref[_i];
+    for (name in _ref) {
+      composition = _ref[name];
       actionPromise = (function(actionPromise, composition) {
         var promise;
         promise = composition.promise;
