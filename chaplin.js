@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-8
+ * Chaplin 1.0.0-dev-9
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -616,10 +616,6 @@ module.exports = Composer = (function() {
       })(promise, dependencyName);
     }
     return promise.then(function() {
-      if (_this.composeLevel > 1 && _this.deferredCreator) {
-        return _this.deferredCreator().reject();
-      }
-    }).then(function() {
       return resolvedDependencies;
     });
   };
