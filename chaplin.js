@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-9
+ * Chaplin 1.0.0-dev-10
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -1507,6 +1507,14 @@ module.exports = View = (function(_super) {
     return bound;
   };
 
+  View.prototype._lookupEventHandler = function(handler) {
+    if (typeof handler === 'function') {
+      return handler;
+    } else {
+      return this[handler];
+    }
+  };
+
   View.prototype._extendEventHandler = function(selector, eventType, handler) {
     return handler;
   };
@@ -1515,7 +1523,7 @@ module.exports = View = (function(_super) {
     var bound, eventName, eventType, extended, handler, key, match, selector, value;
     for (key in events) {
       value = events[key];
-      handler = typeof value === 'function' ? value : this[value];
+      handler = this._lookupEventHandler(value);
       if (!handler) {
         throw new Error("Method '" + value + "' does not exist");
       }
