@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-10
+ * Chaplin 1.0.0-dev-11
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -34,7 +34,6 @@ var loader = (function() {
 
 loader.register('chaplin/application', function(e, r, module) {
 'use strict';
-
 var Application, Backbone, Composer, Dispatcher, EventBroker, Layout, Router, mediator, _;
 
 _ = loader('underscore');
@@ -54,7 +53,6 @@ EventBroker = loader('chaplin/lib/event_broker');
 mediator = loader('chaplin/mediator');
 
 module.exports = Application = (function() {
-
   Application.extend = Backbone.Model.extend;
 
   _.extend(Application.prototype, EventBroker);
@@ -98,11 +96,10 @@ module.exports = Application = (function() {
   };
 
   Application.prototype.initLayout = function(options) {
-    var _ref;
     if (options == null) {
       options = {};
     }
-    if ((_ref = options.title) == null) {
+    if (options.title == null) {
       options.title = this.title;
     }
     return this.layout = new Layout(options);
@@ -154,7 +151,6 @@ module.exports = Application = (function() {
 
 });;loader.register('chaplin/mediator', function(e, r, module) {
 'use strict';
-
 var Backbone, handlers, mediator, support, utils, _,
   __slice = [].slice;
 
@@ -239,7 +235,6 @@ module.exports = mediator;
 
 });;loader.register('chaplin/dispatcher', function(e, r, module) {
 'use strict';
-
 var Backbone, Dispatcher, EventBroker, mediator, utils, _;
 
 _ = loader('underscore');
@@ -253,7 +248,6 @@ utils = loader('chaplin/lib/utils');
 EventBroker = loader('chaplin/lib/event_broker');
 
 module.exports = Dispatcher = (function() {
-
   Dispatcher.extend = Backbone.Model.extend;
 
   _.extend(Dispatcher.prototype, EventBroker);
@@ -284,11 +278,10 @@ module.exports = Dispatcher = (function() {
   };
 
   Dispatcher.prototype.dispatch = function(route, params, options) {
-    var _ref, _ref1,
-      _this = this;
+    var _ref, _ref1;
     params = params ? _.extend({}, params) : {};
     options = options ? _.extend({}, options) : {};
-    if (!(options.query != null)) {
+    if (options.query == null) {
       options.query = {};
     }
     if (options.forceStartup !== true) {
@@ -297,22 +290,26 @@ module.exports = Dispatcher = (function() {
     if (!options.forceStartup && ((_ref = this.currentRoute) != null ? _ref.controller : void 0) === route.controller && ((_ref1 = this.currentRoute) != null ? _ref1.action : void 0) === route.action && _.isEqual(this.currentParams, params) && _.isEqual(this.currentQuery, options.query)) {
       return;
     }
-    return this.loadController(route.controller, function(Controller) {
-      return _this.controllerLoaded(route, params, options, Controller);
-    });
+    this.publishEvent('dispatcher:initializeState', route, params, options);
+    return this.loadController(route.controller, (function(_this) {
+      return function(Controller) {
+        return _this.controllerLoaded(route, params, options, Controller);
+      };
+    })(this));
   };
 
   Dispatcher.prototype.loadController = function(name, handler) {
-    var fileName, moduleName,
-      _this = this;
+    var fileName, moduleName;
     fileName = name + this.settings.controllerSuffix;
     moduleName = this.settings.controllerPath + fileName;
     if (typeof define !== "undefined" && define !== null ? define.amd : void 0) {
       return require([moduleName], handler);
     } else {
-      return setTimeout(function() {
-        return handler(require(moduleName));
-      }, 0);
+      return setTimeout((function(_this) {
+        return function() {
+          return handler(require(moduleName));
+        };
+      })(this), 0);
     }
   };
 
@@ -351,20 +348,21 @@ module.exports = Dispatcher = (function() {
   };
 
   Dispatcher.prototype.executeBeforeAction = function(controller, route, params, options) {
-    var before, executeAction, promise,
-      _this = this;
+    var before, executeAction, promise;
     before = controller.beforeAction;
-    executeAction = function() {
-      if (controller.redirected || _this.currentRoute && route === _this.currentRoute) {
+    executeAction = (function(_this) {
+      return function() {
+        if (controller.redirected || _this.currentRoute && route === _this.currentRoute) {
+          _this.nextPreviousRoute = _this.nextCurrentRoute = null;
+          controller.dispose();
+          return;
+        }
+        _this.previousRoute = _this.nextPreviousRoute;
+        _this.currentRoute = _this.nextCurrentRoute;
         _this.nextPreviousRoute = _this.nextCurrentRoute = null;
-        controller.dispose();
-        return;
-      }
-      _this.previousRoute = _this.nextPreviousRoute;
-      _this.currentRoute = _this.nextCurrentRoute;
-      _this.nextPreviousRoute = _this.nextCurrentRoute = null;
-      return _this.executeAction(controller, route, params, options);
-    };
+        return _this.executeAction(controller, route, params, options);
+      };
+    })(this);
     if (!before) {
       executeAction();
       return;
@@ -397,7 +395,6 @@ module.exports = Dispatcher = (function() {
 
 });;loader.register('chaplin/composer', function(e, r, module) {
 'use strict';
-
 var Backbone, Composer, Composition, EventBroker, mediator, utils, _;
 
 _ = loader('underscore');
@@ -413,20 +410,17 @@ Composition = loader('chaplin/lib/composition');
 EventBroker = loader('chaplin/lib/event_broker');
 
 module.exports = Composer = (function() {
-
   Composer.extend = Backbone.Model.extend;
 
   _.extend(Composer.prototype, EventBroker);
 
   Composer.prototype.compositions = null;
 
-  Composer.prototype.rejectedCompositionPromises = null;
-
-  Composer.prototype.composeLevel = 0;
+  Composer.prototype.currentStateId = null;
 
   Composer.prototype.composeError = null;
 
-  Composer.prototype.deferredCreator = null;
+  Composer.prototype.Promise = null;
 
   Composer.prototype.actionDeferred = null;
 
@@ -439,50 +433,44 @@ module.exports = Composer = (function() {
       options = {};
     }
     this.composeError = options.composeError;
-    this.deferredCreator = options.deferredCreator;
+    this.Promise = options.Promise;
     this.compositions = {};
-    this.rejectedCompositionPromises = {};
     mediator.setHandler('composer:compose', this.compose, this);
-    mediator.setHandler('composer:retrieve', this.retrieve, this);
+    this.subscribeEvent('dispatcher:initializeState', this.beforeAction);
     return this.subscribeEvent('dispatcher:dispatch', this.afterAction);
   };
 
   Composer.prototype.compose = function(name, second, third, fourth) {
-    if (typeof second === 'function') {
-      if (third || second.prototype.dispose) {
-        if (utils.isArray(third)) {
-          fourth = third;
-          third = {};
-        }
-        if (second.prototype instanceof Composition) {
-          return this._compose(name, {
-            composition: second,
-            options: third,
-            dependencies: fourth
-          });
-        } else {
-          return this._compose(name, {
-            options: third,
-            dependencies: fourth,
-            compose: function() {
-              var autoRender, disabledAutoRender;
-              if (second.prototype instanceof Backbone.Model || second.prototype instanceof Backbone.Collection) {
-                this.item = new second(null, this.options);
-              } else {
-                this.item = new second(this.options);
-              }
-              autoRender = this.item.autoRender;
-              disabledAutoRender = autoRender === void 0 || !autoRender;
-              if (disabledAutoRender && typeof this.item.render === 'function') {
-                return this.item.render();
-              }
-            }
-          });
-        }
+    if (typeof second === 'function' && second.prototype.dispose) {
+      if (utils.isArray(third)) {
+        fourth = third;
+        third = {};
       }
-      return this._compose(name, {
-        compose: second
-      });
+      if (second.prototype instanceof Composition) {
+        return this._compose(name, {
+          composition: second,
+          options: third,
+          dependencies: fourth
+        });
+      } else {
+        return this._compose(name, {
+          options: third,
+          dependencies: fourth,
+          compose: function() {
+            var autoRender, disabledAutoRender;
+            if (second.prototype instanceof Backbone.Model || second.prototype instanceof Backbone.Collection) {
+              this.item = new second(null, this.options);
+            } else {
+              this.item = new second(this.options);
+            }
+            autoRender = this.item.autoRender;
+            disabledAutoRender = autoRender === void 0 || !autoRender;
+            if (disabledAutoRender && typeof this.item.render === 'function') {
+              return this.item.render();
+            }
+          }
+        });
+      }
     }
     if (typeof third === 'function') {
       return this._compose(name, {
@@ -495,39 +483,41 @@ module.exports = Composer = (function() {
   };
 
   Composer.prototype._compose = function(name, options) {
-    var composition, current, promise;
-    composition = this._createComposition(options);
-    promise = this._createPromise();
-    current = this.compositions[name];
-    if (current) {
-      if (current.check(composition.options)) {
-        promise = this._mergeComposition(current, composition, promise);
-        composition = current;
+    var composition, currentComposition, dependentMap, newComposition, promise;
+    newComposition = this._createComposition(options);
+    promise = this._createPromise(newComposition);
+    currentComposition = this.compositions[name];
+    if (currentComposition) {
+      if (currentComposition.check(newComposition.options)) {
+        promise = this._mergeComposition(promise, name, currentComposition);
+        composition = currentComposition;
       } else {
-        current.dispose();
+        composition = newComposition;
+        dependentMap = this._buildDependentMap();
+        this._disposeComposition(name, dependentMap);
       }
+    } else {
+      composition = newComposition;
     }
     composition.stale(false);
-    promise = this._resolveDependencies(composition, promise);
-    if (composition !== current) {
-      promise = this._composeComposition(composition, promise);
-    }
-    promise = this._updateComposition(composition, promise);
-    promise = this._errorComposition(name, composition, promise);
-    if (composition.disposed) {
-      return;
-    }
-    promise = this._completeComposition(composition, promise);
-    if (promise) {
-      composition.promise = promise;
+    if (composition !== newComposition) {
+      newComposition.stale(false);
     }
     this.compositions[name] = composition;
-    return composition.promise || composition.item;
+    promise = this._resolveDependencies(promise, composition.dependencies);
+    promise = this._composeComposition(promise);
+    promise = this._updateComposition(promise);
+    promise = this._errorComposition(promise, name);
+    composition.promise = promise;
+    if (composition !== newComposition) {
+      newComposition.promise = promise;
+    }
+    return composition.promise;
   };
 
   Composer.prototype._createComposition = function(options) {
     var composition;
-    if (typeof options.compose !== 'function' && !(options.composition != null)) {
+    if (typeof options.compose !== 'function' && (options.composition == null)) {
       throw new Error('Composer#compose was used incorrectly');
     }
     if (options.composition != null) {
@@ -554,142 +544,134 @@ module.exports = Composer = (function() {
     return composition;
   };
 
-  Composer.prototype._createPromise = function() {
-    var promise;
-    if (!this.actionDeferred && this.deferredCreator) {
-      this.actionDeferred = this.deferredCreator();
+  Composer.prototype._createPromise = function(composition) {
+    if (this.Promise == null) {
+      throw new Error('Promise implementation is not set');
     }
-    if (this.actionDeferred) {
-      promise = this.actionDeferred.promise();
-    } else {
-      promise = {
-        then: function(done) {
-          var result;
-          result = done(this.result);
-          if (result && result.then) {
-            return result;
+    if (!this.actionDeferred) {
+      this.actionDeferred = utils.Deferred(this.Promise);
+    }
+    return this.actionDeferred.promise().then(function() {
+      return composition;
+    });
+  };
+
+  Composer.prototype._mergeComposition = function(promise, name, currentComposition) {
+    var currentCompositionPromise;
+    currentCompositionPromise = currentComposition.promise;
+    return promise.then((function(_this) {
+      return function(newComposition) {
+        currentComposition.update = newComposition.update;
+        return currentCompositionPromise.then(function(currentComposition) {
+          return currentComposition;
+        }, function() {
+          var dependentMap;
+          if (currentComposition.composed) {
+            return _this.Promise.resolve(currentComposition);
+          } else {
+            dependentMap = _this._buildDependentMap();
+            _this._disposeComposition(name, dependentMap);
+            _this.compositions[name] = newComposition;
+            return _this.Promise.resolve(newComposition);
           }
-          this.result = result;
-          return this;
+        });
+      };
+    })(this));
+  };
+
+  Composer.prototype._resolveDependencies = function(promise, dependencies) {
+    var dependency, dependencyName, dependencyPromises, _i, _len;
+    dependencyPromises = [];
+    for (_i = 0, _len = dependencies.length; _i < _len; _i++) {
+      dependencyName = dependencies[_i];
+      dependency = this.compositions[dependencyName];
+      if ((dependency == null) || dependency.stale()) {
+        throw new Error("Composition dependency '" + dependencyName + "' is not available");
+      }
+      dependencyPromises.push(dependency.promise);
+    }
+    return promise.then((function(_this) {
+      return function(composition) {
+        var dependenciesPromise;
+        dependenciesPromise = _this.Promise.all(dependencyPromises);
+        return dependenciesPromise.then(function(dependencyCompositions) {
+          var dependencyItems;
+          dependencyItems = _.map(dependencyCompositions, function(dependencyComposition) {
+            return dependencyComposition.item;
+          });
+          return [composition, dependencyItems];
+        });
+      };
+    })(this));
+  };
+
+  Composer.prototype._composeComposition = function(promise) {
+    var initStateId;
+    initStateId = this.currentStateId;
+    return promise.then((function(_this) {
+      return function(_arg) {
+        var composePromise, composeResult, composition, dependencyItems;
+        composition = _arg[0], dependencyItems = _arg[1];
+        if (_this.currentStateId !== initStateId) {
+          return _this.Promise.reject({
+            abort: true
+          });
+        }
+        if (composition.composed) {
+          return [composition, dependencyItems];
+        }
+        composeResult = composition.compose.apply(composition.item, [composition.options].concat(dependencyItems));
+        composePromise = _this.Promise.resolve(composeResult);
+        return composePromise.then(function() {
+          composition.composed = true;
+          return [composition, dependencyItems];
+        });
+      };
+    })(this));
+  };
+
+  Composer.prototype._updateComposition = function(promise) {
+    var initStateId;
+    initStateId = this.currentStateId;
+    return promise.then((function(_this) {
+      return function(_arg) {
+        var composition, dependencyItems, updatePromise, updateResult;
+        composition = _arg[0], dependencyItems = _arg[1];
+        if (_this.currentStateId !== initStateId) {
+          return _this.Promise.reject({
+            abort: true
+          });
+        }
+        updateResult = composition.update.apply(composition.item, [composition.options].concat(dependencyItems));
+        updatePromise = _this.Promise.resolve(updateResult);
+        return updatePromise.then(function() {
+          return composition;
+        });
+      };
+    })(this));
+  };
+
+  Composer.prototype._errorComposition = function(promise, name) {
+    return promise.then(function(composition) {
+      return composition;
+    }, (function(_this) {
+      return function(error) {
+        var composition, errorResult;
+        if (error.abort) {
+          return _this.Promise.reject(error);
+        }
+        composition = _this.compositions[name];
+        errorResult = composition.error.call(composition.item, error, composition.options);
+        if ((errorResult == null) && _this.composeError) {
+          errorResult = _this.composeError(error, composition.item);
+        }
+        if ((errorResult != null) && errorResult.then) {
+          return _this.Promise.resolve(errorResult);
+        } else {
+          return _this.Promise.reject(error);
         }
       };
-    }
-    return promise;
-  };
-
-  Composer.prototype._mergeComposition = function(current, composition, promise) {
-    var _promise;
-    current.update = composition.update;
-    if (current.promise) {
-      _promise = promise;
-      promise = current.promise.then(function() {
-        return _promise;
-      }, function() {
-        return _promise;
-      });
-      delete current.promise;
-    }
-    return promise;
-  };
-
-  Composer.prototype._resolveDependencies = function(composition, promise) {
-    var dependencyName, resolvedDependencies, _i, _len, _ref,
-      _this = this;
-    resolvedDependencies = [];
-    _ref = composition.dependencies;
-    for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-      dependencyName = _ref[_i];
-      promise = (function(promise, dependencyName) {
-        return promise.then(function() {
-          var dependency;
-          if (dependencyName in _this.rejectedCompositionPromises) {
-            return _this.rejectedCompositionPromises[dependencyName];
-          }
-          dependency = _this.compositions[dependencyName];
-          if (!(dependency != null) || (!(_this.deferredCreator != null) && dependency.stale())) {
-            return;
-          }
-          return dependency.promise || dependency.item;
-        }).then(function(item) {
-          return resolvedDependencies.push(item);
-        });
-      })(promise, dependencyName);
-    }
-    return promise.then(function() {
-      return resolvedDependencies;
-    });
-  };
-
-  Composer.prototype._composeComposition = function(composition, promise) {
-    var dependencies;
-    dependencies = null;
-    return promise.then(function(resolvedDependencies) {
-      dependencies = resolvedDependencies;
-      return composition.compose.apply(composition.item, [composition.options].concat(resolvedDependencies));
-    }).then(function() {
-      return dependencies;
-    });
-  };
-
-  Composer.prototype._updateComposition = function(composition, promise) {
-    return promise.then(function(resolvedDependencies) {
-      return composition.update.apply(composition.item, [composition.options].concat(resolvedDependencies));
-    });
-  };
-
-  Composer.prototype._errorComposition = function(name, composition, promise) {
-    var disposeComposition,
-      _this = this;
-    disposeComposition = function() {
-      _this.rejectedCompositionPromises[name] = composition.promise;
-      return _this._disposeComposition(name, {});
-    };
-    return promise.then(function(result) {
-      return result;
-    }, function() {
-      var errorResult;
-      errorResult = composition.error.call(composition.item, composition.options);
-      if (!(errorResult != null) && _this.composeError) {
-        errorResult = _this.composeError(composition.item);
-      }
-      if ((errorResult != null) && errorResult.then) {
-        return errorResult.then(function(result) {
-          return result;
-        }, disposeComposition);
-      } else {
-        return disposeComposition();
-      }
-    });
-  };
-
-  Composer.prototype._completeComposition = function(composition, promise) {
-    var resolved;
-    resolved = null;
-    promise = promise.then(function() {
-      resolved = true;
-      if (composition.disposed) {
-        return;
-      }
-      if (composition.promise === promise) {
-        delete composition.promise;
-      }
-      return composition.item;
-    });
-    if (resolved) {
-      return null;
-    } else {
-      return promise;
-    }
-  };
-
-  Composer.prototype.retrieve = function(name) {
-    var active;
-    active = this.compositions[name];
-    if (active && !active.stale()) {
-      return active.promise || active.item;
-    } else {
-      return void 0;
-    }
+    })(this));
   };
 
   Composer.prototype._buildDependentMap = function() {
@@ -731,60 +713,73 @@ module.exports = Composer = (function() {
       return;
     }
     composition.dispose();
-    composition.afterDispose.apply(null);
+    if (composition.composed) {
+      composition.afterDispose.apply(null);
+    }
     delete this.compositions[name];
   };
 
-  Composer.prototype._waitForCompose = function(action) {
-    var actionPromise, composition, name, _ref;
-    actionPromise = null;
+  Composer.prototype._waitForCompose = function() {
+    var composition, compositionPromises, compositionsPromise, name, _ref;
+    compositionPromises = [];
     _ref = this.compositions;
     for (name in _ref) {
       composition = _ref[name];
-      actionPromise = (function(actionPromise, composition) {
-        var promise;
-        promise = composition.promise;
-        if (!promise) {
-          return actionPromise;
-        }
-        if (!actionPromise) {
-          return promise;
-        }
-        return actionPromise.then(function() {
-          return promise;
-        }, function() {
-          return promise;
-        });
-      })(actionPromise, composition);
+      compositionPromises.push(composition.promise);
     }
-    if (actionPromise) {
-      return actionPromise.then(action, action);
-    } else {
-      return action();
+    compositionsPromise = this.Promise.all(compositionPromises);
+    return compositionsPromise.then(function() {
+      return true;
+    }, (function(_this) {
+      return function(error) {
+        if (error.abort) {
+          return _this.Promise.reject(error);
+        }
+        return false;
+      };
+    })(this));
+  };
+
+  Composer.prototype.beforeAction = function() {
+    var actionDeferred;
+    actionDeferred = this.actionDeferred;
+    if (this.actionDeferred != null) {
+      this.actionDeferred = null;
+      actionDeferred.reject({
+        abort: true
+      });
     }
+    this.deactivateCompositions();
+    return this.currentStateId = _.uniqueId('dispatcher_state_');
   };
 
   Composer.prototype.afterAction = function() {
-    var actionDeferred,
-      _this = this;
+    var actionDeferred, waitForComposePromise;
     actionDeferred = this.actionDeferred;
-    this.composeLevel++;
     this.cleanup();
     if (actionDeferred != null) {
       this.actionDeferred = null;
       actionDeferred.resolve();
     }
-    return this._waitForCompose(function() {
-      _this.rejectedCompositionPromises = {};
-      _this.composeLevel--;
-      if (_this.composeLevel === 0) {
-        return _this.publishEvent('composer:complete');
-      }
-    });
+    waitForComposePromise = this._waitForCompose();
+    return waitForComposePromise.then((function(_this) {
+      return function(success) {
+        return _this.publishEvent('composer:complete', success);
+      };
+    })(this), function() {});
+  };
+
+  Composer.prototype.deactivateCompositions = function() {
+    var composition, name, _ref;
+    _ref = this.compositions;
+    for (name in _ref) {
+      composition = _ref[name];
+      composition.stale(true);
+    }
   };
 
   Composer.prototype.cleanup = function() {
-    var composition, dependentMap, name, staleFilter, _ref;
+    var dependentMap, name, staleFilter;
     dependentMap = this._buildDependentMap();
     staleFilter = function(composition) {
       return composition.stale();
@@ -792,11 +787,7 @@ module.exports = Composer = (function() {
     for (name in this.compositions) {
       this._disposeComposition(name, dependentMap, staleFilter);
     }
-    _ref = this.compositions;
-    for (name in _ref) {
-      composition = _ref[name];
-      composition.stale(true);
-    }
+    return this.deactivateCompositions();
   };
 
   Composer.prototype.dispose = function() {
@@ -821,7 +812,6 @@ module.exports = Composer = (function() {
 
 });;loader.register('chaplin/controllers/controller', function(e, r, module) {
 'use strict';
-
 var Backbone, Controller, EventBroker, mediator, utils, _,
   __slice = [].slice,
   __hasProp = {}.hasOwnProperty;
@@ -837,7 +827,6 @@ utils = loader('chaplin/lib/utils');
 mediator = loader('chaplin/mediator');
 
 module.exports = Controller = (function() {
-
   Controller.extend = Backbone.Model.extend;
 
   _.extend(Controller.prototype, Backbone.Events);
@@ -861,9 +850,7 @@ module.exports = Controller = (function() {
   };
 
   Controller.prototype.reuse = function(name) {
-    var method;
-    method = arguments.length === 1 ? 'retrieve' : 'compose';
-    return mediator.execute.apply(mediator, ["composer:" + method].concat(__slice.call(arguments)));
+    return mediator.execute.apply(mediator, ["composer:compose"].concat(__slice.call(arguments)));
   };
 
   Controller.prototype.compose = function() {
@@ -903,7 +890,6 @@ module.exports = Controller = (function() {
 
 });;loader.register('chaplin/models/collection', function(e, r, module) {
 'use strict';
-
 var Backbone, Collection, EventBroker, Model, utils, _,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
@@ -919,7 +905,6 @@ Model = loader('chaplin/models/model');
 utils = loader('chaplin/lib/utils');
 
 module.exports = Collection = (function(_super) {
-
   __extends(Collection, _super);
 
   function Collection() {
@@ -963,7 +948,6 @@ module.exports = Collection = (function(_super) {
 
 });;loader.register('chaplin/models/model', function(e, r, module) {
 'use strict';
-
 var Backbone, EventBroker, Model, serializeAttributes, serializeModelAttributes, utils, _,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
@@ -1011,7 +995,6 @@ serializeModelAttributes = function(model, currentModel, modelStack) {
 };
 
 module.exports = Model = (function(_super) {
-
   __extends(Model, _super);
 
   function Model() {
@@ -1054,7 +1037,6 @@ module.exports = Model = (function(_super) {
 
 });;loader.register('chaplin/views/layout', function(e, r, module) {
 'use strict';
-
 var $, Backbone, EventBroker, Layout, View, mediator, utils, _,
   __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   __hasProp = {}.hasOwnProperty,
@@ -1075,7 +1057,6 @@ View = loader('chaplin/views/view');
 $ = Backbone.$;
 
 module.exports = Layout = (function(_super) {
-
   __extends(Layout, _super);
 
   Layout.prototype.el = 'body';
@@ -1095,7 +1076,6 @@ module.exports = Layout = (function(_super) {
       options = {};
     }
     this.openLink = __bind(this.openLink, this);
-
     this.globalRegions = [];
     this.title = options.title;
     if (options.regions) {
@@ -1132,8 +1112,7 @@ module.exports = Layout = (function(_super) {
   };
 
   Layout.prototype.adjustTitle = function(subtitle) {
-    var title,
-      _this = this;
+    var title;
     if (subtitle == null) {
       subtitle = '';
     }
@@ -1141,10 +1120,12 @@ module.exports = Layout = (function(_super) {
       title: this.title,
       subtitle: subtitle
     });
-    setTimeout(function() {
-      document.title = title;
-      return _this.publishEvent('adjustTitle', subtitle, title);
-    }, 50);
+    setTimeout((function(_this) {
+      return function() {
+        document.title = title;
+        return _this.publishEvent('adjustTitle', subtitle, title);
+      };
+    })(this), 50);
     return title;
   };
 
@@ -1186,7 +1167,7 @@ module.exports = Layout = (function(_super) {
     el = $ ? event.currentTarget : event.delegateTarget;
     isAnchor = el.nodeName === 'A';
     href = el.getAttribute('href') || el.getAttribute('data-href') || null;
-    if (!(href != null) || href === '' || href.charAt(0) === '#') {
+    if ((href == null) || href === '' || href.charAt(0) === '#') {
       return;
     }
     skipRouting = this.settings.skipRouting;
@@ -1319,7 +1300,6 @@ module.exports = Layout = (function(_super) {
 
 });;loader.register('chaplin/views/view', function(e, r, module) {
 'use strict';
-
 var $, Backbone, EventBroker, View, attach, bind, mediator, setHTML, utils, _,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
@@ -1384,7 +1364,6 @@ attach = (function() {
 })();
 
 module.exports = View = (function(_super) {
-
   __extends(View, _super);
 
   _.extend(View.prototype, EventBroker);
@@ -1414,8 +1393,7 @@ module.exports = View = (function(_super) {
   View.prototype.optionNames = ['autoAttach', 'autoRender', 'container', 'containerMethod', 'region', 'regions', 'noWrap'];
 
   function View(options) {
-    var optName, optValue, region, render,
-      _this = this;
+    var optName, optValue, region, render;
     if (options) {
       for (optName in options) {
         optValue = options[optName];
@@ -1426,16 +1404,18 @@ module.exports = View = (function(_super) {
     }
     this.rendered = false;
     render = this.render;
-    this.render = function() {
-      if (_this.disposed) {
-        return false;
-      }
-      render.apply(_this, arguments);
-      if (_this.autoAttach) {
-        _this.attach.apply(_this, arguments);
-      }
-      return _this;
-    };
+    this.render = (function(_this) {
+      return function() {
+        if (_this.disposed) {
+          return false;
+        }
+        render.apply(_this, arguments);
+        if (_this.autoAttach) {
+          _this.attach.apply(_this, arguments);
+        }
+        return _this;
+      };
+    })(this);
     this.subviews = [];
     this.subviewsByName = {};
     if (this.noWrap) {
@@ -1455,11 +1435,13 @@ module.exports = View = (function(_super) {
       this.listenTo(this.model, 'dispose', this.dispose);
     }
     if (this.collection) {
-      this.listenTo(this.collection, 'dispose', function(subject) {
-        if (!subject || subject === _this.collection) {
-          return _this.dispose();
-        }
-      });
+      this.listenTo(this.collection, 'dispose', (function(_this) {
+        return function(subject) {
+          if (!subject || subject === _this.collection) {
+            return _this.dispose();
+          }
+        };
+      })(this));
     }
     if (this.regions != null) {
       mediator.execute('region:register', this);
@@ -1800,7 +1782,6 @@ module.exports = View = (function(_super) {
 
 });;loader.register('chaplin/views/collection_view', function(e, r, module) {
 'use strict';
-
 var $, Backbone, CollectionView, View, addClass, endAnimation, filterChildren, insertView, startAnimation, toggleElement, utils, _,
   __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   __hasProp = {}.hasOwnProperty,
@@ -1951,7 +1932,6 @@ insertView = (function() {
 })();
 
 module.exports = CollectionView = (function(_super) {
-
   __extends(CollectionView, _super);
 
   CollectionView.prototype.itemView = null;
@@ -1997,13 +1977,9 @@ module.exports = CollectionView = (function(_super) {
 
   function CollectionView(options) {
     this.renderAllItems = __bind(this.renderAllItems, this);
-
     this.toggleFallback = __bind(this.toggleFallback, this);
-
     this.itemsReset = __bind(this.itemsReset, this);
-
     this.itemRemoved = __bind(this.itemRemoved, this);
-
     this.itemAdded = __bind(this.itemAdded, this);
     this.visibleItems = [];
     CollectionView.__super__.constructor.apply(this, arguments);
@@ -2121,25 +2097,26 @@ module.exports = CollectionView = (function(_super) {
   };
 
   CollectionView.prototype.filter = function(filterer, filterCallback) {
-    var hasItemViews, included, index, item, view, _i, _len, _ref,
-      _this = this;
+    var hasItemViews, included, index, item, view, _i, _len, _ref;
     if (typeof filterer === 'function' || filterer === null) {
       this.filterer = filterer;
     }
     if (typeof filterCallback === 'function' || filterCallback === null) {
       this.filterCallback = filterCallback;
     }
-    hasItemViews = (function() {
-      var name;
-      if (_this.subviews.length > 0) {
-        for (name in _this.subviewsByName) {
-          if (name.slice(0, 9) === 'itemView:') {
-            return true;
+    hasItemViews = (function(_this) {
+      return function() {
+        var name;
+        if (_this.subviews.length > 0) {
+          for (name in _this.subviewsByName) {
+            if (name.slice(0, 9) === 'itemView:') {
+              return true;
+            }
           }
         }
-      }
-      return false;
-    })();
+        return false;
+      };
+    })(this)();
     if (hasItemViews) {
       _ref = this.collection.models;
       for (index = _i = 0, _len = _ref.length; _i < _len; index = ++_i) {
@@ -2213,8 +2190,7 @@ module.exports = CollectionView = (function(_super) {
   };
 
   CollectionView.prototype.insertView = function(item, view, position, enableAnimation) {
-    var elem, included, length, list,
-      _this = this;
+    var elem, included, length, list;
     if (enableAnimation == null) {
       enableAnimation = true;
     }
@@ -2239,9 +2215,11 @@ module.exports = CollectionView = (function(_super) {
     this.updateVisibleItems(item, included);
     if (included && enableAnimation) {
       if (this.useCssAnimation) {
-        setTimeout((function() {
-          return addClass(elem, _this.animationEndClass);
-        }), 0);
+        setTimeout(((function(_this) {
+          return function() {
+            return addClass(elem, _this.animationEndClass);
+          };
+        })(this)), 0);
       } else {
         endAnimation(elem, this.animationDuration);
       }
@@ -2294,7 +2272,6 @@ module.exports = CollectionView = (function(_super) {
 
 });;loader.register('chaplin/lib/route', function(e, r, module) {
 'use strict';
-
 var Backbone, Controller, EventBroker, Route, utils, _,
   __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   __hasProp = {}.hasOwnProperty;
@@ -2338,19 +2315,14 @@ module.exports = Route = (function() {
   };
 
   function Route(pattern, controller, action, options) {
-    var _ref;
     this.pattern = pattern;
     this.controller = controller;
     this.action = action;
     this.handler = __bind(this.handler, this);
-
     this.replaceParams = __bind(this.replaceParams, this);
-
     this.parseOptionalPortion = __bind(this.parseOptionalPortion, this);
-
     if (typeof this.pattern !== 'string') {
-      throw new Error('Route: RegExps are not supported.\
-        Use strings with :names and `constraints` option of route');
+      throw new Error('Route: RegExps are not supported. Use strings with :names and `constraints` option of route');
     }
     this.options = options ? _.extend({}, options) : {};
     if (this.options.paramsInQS !== false) {
@@ -2362,7 +2334,7 @@ module.exports = Route = (function() {
     if (this.name && this.name.indexOf('#') !== -1) {
       throw new Error('Route: "#" cannot be used in name');
     }
-    if ((_ref = this.name) == null) {
+    if (this.name == null) {
       this.name = this.controller + '#' + this.action;
     }
     this.allParams = [];
@@ -2495,28 +2467,32 @@ module.exports = Route = (function() {
   };
 
   Route.prototype.createRegExp = function() {
-    var pattern,
-      _this = this;
+    var pattern;
     pattern = this.pattern;
     pattern = pattern.replace(escapeRegExp, '\\$&');
-    this.replaceParams(pattern, function(match, param) {
-      return _this.allParams.push(param);
-    });
+    this.replaceParams(pattern, (function(_this) {
+      return function(match, param) {
+        return _this.allParams.push(param);
+      };
+    })(this));
     pattern = pattern.replace(optionalRegExp, this.parseOptionalPortion);
-    pattern = this.replaceParams(pattern, function(match, param) {
-      _this.requiredParams.push(param);
-      return _this.paramCapturePattern(match);
-    });
-    return this.regExp = RegExp("^" + pattern + "(?=\\/*(?=\\?|$))");
+    pattern = this.replaceParams(pattern, (function(_this) {
+      return function(match, param) {
+        _this.requiredParams.push(param);
+        return _this.paramCapturePattern(match);
+      };
+    })(this));
+    return this.regExp = RegExp("^" + pattern + "(?=/*(?=\\?|$))");
   };
 
   Route.prototype.parseOptionalPortion = function(match, optionalPortion) {
-    var portion,
-      _this = this;
-    portion = this.replaceParams(optionalPortion, function(match, param) {
-      _this.optionalParams.push(param);
-      return _this.paramCapturePattern(match);
-    });
+    var portion;
+    portion = this.replaceParams(optionalPortion, (function(_this) {
+      return function(match, param) {
+        _this.optionalParams.push(param);
+        return _this.paramCapturePattern(match);
+      };
+    })(this));
     return "(?:" + portion + ")?";
   };
 
@@ -2554,7 +2530,7 @@ module.exports = Route = (function() {
       path = this.reverse(params);
     } else {
       _ref = pathParams.split('?'), path = _ref[0], query = _ref[1];
-      if (!(query != null)) {
+      if (query == null) {
         query = '';
       } else {
         options.query = utils.queryParams.parse(query);
@@ -2592,7 +2568,6 @@ module.exports = Route = (function() {
 
 });;loader.register('chaplin/lib/router', function(e, r, module) {
 'use strict';
-
 var Backbone, EventBroker, History, Route, Router, mediator, utils, _,
   __bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
 
@@ -2611,7 +2586,6 @@ Route = loader('chaplin/lib/route');
 utils = loader('chaplin/lib/utils');
 
 module.exports = Router = (function() {
-
   Router.extend = Backbone.Model.extend;
 
   _.extend(Router.prototype, EventBroker);
@@ -2620,7 +2594,6 @@ module.exports = Router = (function() {
     var isWebFile;
     this.options = options != null ? options : {};
     this.match = __bind(this.match, this);
-
     isWebFile = window.location.protocol !== 'file:';
     _.defaults(this.options, {
       pushState: isWebFile,
@@ -2638,8 +2611,7 @@ module.exports = Router = (function() {
   }
 
   Router.prototype.oldEventError = function() {
-    throw new Error('!router:route and !router:routeByName events were removed.\
-  Use `Chaplin.utils.redirectTo`');
+    throw new Error('!router:route and !router:routeByName events were removed. Use `Chaplin.utils.redirectTo`');
   };
 
   Router.prototype.oldURLEventError = function() {
@@ -2795,7 +2767,6 @@ module.exports = Router = (function() {
 
 });;loader.register('chaplin/lib/history', function(e, r, module) {
 'use strict';
-
 var Backbone, History, isExplorer, rootStripper, routeStripper, trailingSlash, _,
   __hasProp = {}.hasOwnProperty,
   __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
@@ -2813,7 +2784,6 @@ isExplorer = /msie [\w.]+/;
 trailingSlash = /\/$/;
 
 History = (function(_super) {
-
   __extends(History, _super);
 
   function History() {
@@ -2822,7 +2792,7 @@ History = (function(_super) {
 
   History.prototype.getFragment = function(fragment, forcePushState) {
     var root;
-    if (!(fragment != null)) {
+    if (fragment == null) {
       if (this._hasPushState || !this._wantsHashChange || forcePushState) {
         fragment = this.location.pathname + this.location.search;
         root = this.root.replace(trailingSlash, '');
@@ -2926,7 +2896,6 @@ module.exports = Backbone.$ ? History : Backbone.History;
 
 });;loader.register('chaplin/lib/event_broker', function(e, r, module) {
 'use strict';
-
 var EventBroker, mediator,
   __slice = [].slice;
 
@@ -2983,12 +2952,11 @@ module.exports = EventBroker;
 
 });;loader.register('chaplin/lib/support', function(e, r, module) {
 'use strict';
-
 var support;
 
 support = {
   propertyDescriptors: (function() {
-    var o;
+    var error, o;
     if (!(typeof Object.defineProperty === 'function' && typeof Object.defineProperties === 'function')) {
       return false;
     }
@@ -2998,7 +2966,8 @@ support = {
         value: 'bar'
       });
       return o.foo === 'bar';
-    } catch (error) {
+    } catch (_error) {
+      error = _error;
       return false;
     }
   })()
@@ -3008,7 +2977,6 @@ module.exports = support;
 
 });;loader.register('chaplin/lib/composition', function(e, r, module) {
 'use strict';
-
 var Backbone, Composition, EventBroker, has, _,
   __hasProp = {}.hasOwnProperty;
 
@@ -3021,7 +2989,6 @@ EventBroker = loader('chaplin/lib/event_broker');
 has = Object.prototype.hasOwnProperty;
 
 module.exports = Composition = (function() {
-
   Composition.extend = Backbone.Model.extend;
 
   _.extend(Composition.prototype, Backbone.Events);
@@ -3109,7 +3076,6 @@ module.exports = Composition = (function() {
 
 });;loader.register('chaplin/lib/sync_machine', function(e, r, module) {
 'use strict';
-
 var STATE_CHANGE, SYNCED, SYNCING, SyncMachine, UNSYNCED, event, _fn, _i, _len, _ref;
 
 UNSYNCED = 'unsynced';
@@ -3196,7 +3162,6 @@ module.exports = SyncMachine;
 
 });;loader.register('chaplin/lib/utils', function(e, r, module) {
 'use strict';
-
 var support, utils, _,
   __slice = [].slice,
   __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; },
@@ -3356,6 +3321,21 @@ utils = {
       }
       return params;
     }
+  },
+  Deferred: function(Promise) {
+    var deferred, promise;
+    deferred = {
+      promise: function() {
+        return promise;
+      }
+    };
+    promise = new Promise(function(resolve, reject) {
+      return _.extend(deferred, {
+        resolve: resolve,
+        reject: reject
+      });
+    });
+    return deferred;
   }
 };
 
@@ -3368,7 +3348,6 @@ if (typeof Object.seal === "function") {
 module.exports = utils;
 
 });;loader.register('chaplin', function(e, r, module) {
-
 module.exports = {
   Application: loader('chaplin/application'),
   mediator: loader('chaplin/mediator'),
