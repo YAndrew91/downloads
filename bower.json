@@ -1,7 +1,7 @@
 {
   "name": "chaplin",
   "repo": "YAndrew91/downloads",
-  "version": "1.0.0-dev-11",
+  "version": "1.0.0-dev-12",
   "main": "chaplin.js",
   "scripts": [
     "chaplin.js"

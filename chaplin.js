@@ -1,5 +1,5 @@
 /*!
- * Chaplin 1.0.0-dev-11
+ * Chaplin 1.0.0-dev-12
  *
  * Chaplin may be freely distributed under the MIT license.
  * For all details and documentation:
@@ -2325,9 +2325,6 @@ module.exports = Route = (function() {
       throw new Error('Route: RegExps are not supported. Use strings with :names and `constraints` option of route');
     }
     this.options = options ? _.extend({}, options) : {};
-    if (this.options.paramsInQS !== false) {
-      this.options.paramsInQS = true;
-    }
     if (this.options.name != null) {
       this.name = this.options.name;
     }
@@ -2598,7 +2595,8 @@ module.exports = Router = (function() {
     _.defaults(this.options, {
       pushState: isWebFile,
       root: '/',
-      trailing: false
+      trailing: false,
+      paramsInQS: true
     });
     this.removeRoot = new RegExp('^' + utils.escapeRegExp(this.options.root) + '(#)?');
     this.subscribeEvent('!router:route', this.oldEventError);
@@ -2662,7 +2660,8 @@ module.exports = Router = (function() {
       _ref = target.split('#'), controller = _ref[0], action = _ref[1];
     }
     _.defaults(options, {
-      trailing: this.options.trailing
+      trailing: this.options.trailing,
+      paramsInQS: this.options.paramsInQS
     });
     route = new Route(pattern, controller, action, options);
     Backbone.history.handlers.push({

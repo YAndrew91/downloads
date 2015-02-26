@@ -1,6 +1,6 @@
 {
   "name": "chaplin",
-  "version": "1.0.0-dev-11",
+  "version": "1.0.0-dev-12",
   "description": "Chaplin.js",
   "main": "chaplin.js",
   "scripts": {
